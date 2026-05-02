@@ -1,0 +1,19 @@
+{
+  "name": "ra2311026011019",
+  "version": "1.0.0",
+  "description": "- `logging-middleware/`: Middleware for logging requests and events. - `vehicle_maintenance_scheduler/`: Service for scheduling vehicle maintenance. - `notification_app_be/`: Backend for the notification application.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.15.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
