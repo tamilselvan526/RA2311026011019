@@ -1,12 +1,12 @@
 const axios = require('axios');
 
 const registrationData = {
-  email: "tp7053@srmist.edu.in",
+  email: "tp7053_v6@srmist.edu.in",
   name: "Tamilselvan P",
-  mobileNo: "9994371185",
-  githubUsername: "https://github.com/tamilselvan526",
-  rollNo: "RA2311026011019",
-  accessCode: "QkbpxH" // Provided by user
+  mobileNo: "9994371186",
+  githubUsername: "tamilselvan526",
+  rollNo: "RA2311026011019-v1",
+  accessCode: "QkbpxH"
 };
 
 async function register() {

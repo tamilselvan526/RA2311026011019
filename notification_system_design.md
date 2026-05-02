@@ -1,37 +1,65 @@
-# Notification System Design
+# Notification System Architecture & Optimization Strategy
 
-## 1. Introduction
-The Notification System is a scalable and reliable service designed to deliver real-time notifications to users across multiple channels (Email, SMS, Push). It serves as a central hub for all communication triggered by various microservices within the ecosystem.
+## Introduction
+This document outlines the design and scaling strategies for a high-performance notification system. The goal is to provide reliable, real-time updates to students while maintaining high availability and low latency across all services.
 
-## 2. Architecture
-The system follows a microservices-based architecture with a decoupled message processing pipeline.
+## Core Objectives
+- **Reliability**: Zero-loss message delivery even under high load.
+- **Scalability**: Decoupled architecture using message queues for horizontal scaling.
+- **Optimization**: Strategic indexing and caching for sub-millisecond data retrieval.
 
-- **Producers**: Services that trigger notifications (e.g., Vehicle Scheduler).
-- **Message Queue**: Decouples producers from consumers for high availability and load leveling.
-- **Consumers**: Workers that process messages from the queue and interact with third-party providers.
-- **Third-Party Providers**: Services like Twilio (SMS), SendGrid (Email), or FCM (Push).
+## Stage 1: API Design
+The system provides a RESTful API for managing user notifications.
+- `POST /notifications`: Create and send a new notification.
+- `GET /notifications`: Retrieve a list of notifications for the authenticated user.
+- `DELETE /notifications/:id`: Mark a notification as deleted or dismissed.
 
-## 3. Components
-- **API Gateway**: Entry point for all notification requests, handles authentication and rate limiting.
-- **Notification Service**: Manages notification templates, user preferences, and routing logic.
-- **Metadata Database**: Stores notification history, templates, and delivery status (e.g., PostgreSQL or MongoDB).
-- **Cache**: Stores frequently accessed data like user notification settings (e.g., Redis).
-- **Workers**: Asynchronous processors that handle the actual delivery logic.
+## Stage 2: Database Design
+We use **PostgreSQL** for persistence due to its support for complex queries and indexing.
 
-## 4. Flow
-1. A service (e.g., Vehicle Maintenance) triggers an event.
-2. The Notification Service validates the request and fetches user preferences.
-3. The message is pushed into a prioritized Message Queue (e.g., RabbitMQ or Kafka).
-4. A Worker picks up the message, selects the appropriate provider, and attempts delivery.
-5. Delivery status (Sent, Delivered, Failed) is updated in the database.
+### Table: `notifications`
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary key |
+| `student_id` | Integer | ID of the student receiving the notification |
+| `type` | String | Type of notification (e.g., PLACEMENT, RESULT, EVENT) |
+| `message` | Text | The notification content |
+| `is_read` | Boolean | Read status (default: false) |
+| `created_at` | Timestamp | Time of creation |
 
-## 5. Scaling
-- **Horizontal Scaling**: Notification workers can be scaled horizontally to handle increased throughput.
-- **Database Sharding**: Notification history can be sharded by `userId` to handle massive datasets.
-- **Multi-Region Deployment**: Ensuring low latency by deploying notification workers close to the users.
+## Stage 3: Query Optimization
+### Problem
+Slow retrieval for active notifications:
+```sql
+SELECT * FROM notifications 
+WHERE student_id = 1042 AND is_read = false 
+ORDER BY created_at DESC;
+```
+### Fix
+Implement a compound index to cover filtering and sorting:
+```sql
+CREATE INDEX idx_notifications_student_read_created 
+ON notifications(student_id, is_read, created_at DESC);
+```
 
-## 6. Failure Handling
-- **Retries with Exponential Backoff**: Automatic retries for transient failures (e.g., network issues with providers).
-- **Dead Letter Queues (DLQ)**: Messages that fail repeatedly are moved to a DLQ for manual inspection.
-- **Circuit Breaker Pattern**: Prevents the system from overwhelming a failing downstream provider.
-- **Idempotency**: Ensures that users do not receive duplicate notifications for the same event.
+## Stage 4: Performance Strategies
+- **Pagination**: We use cursor-based pagination to prevent "deep paging" performance hits.
+- **Caching**: Recent notifications are cached in **Redis**. *Rationale: I chose Redis because its in-memory nature allows us to serve the most frequent "unread count" queries without touching the main database.*
+- **Lazy Loading**: UI elements load details on demand to save bandwidth.
+
+## Stage 5: Fix `notify_all`
+### Problem
+The initial `notify_all` implementation was sequential and brittle.
+### Solution
+- **Message Queue (Kafka)**: We decouple the notification trigger from the actual delivery. *Rationale: Using Kafka allows us to handle massive spikes in notifications (e.g., during a result release) without crashing the backend. It also provides built-in retry mechanisms if a downstream service fails.*
+
+## Stage 6: Top 10 Notifications (Efficient Maintenance)
+### The Challenge
+Maintaining a real-time "Top 10" list as thousands of notifications pour in is a computational challenge.
+
+### The Solution: Min-Heap
+Instead of re-sorting the database, I implemented a **Min-Heap** approach. *Rationale: By maintaining a small, 10-element heap in memory, we can update the list in O(log 10) time. This ensures that the user's "Important" feed is always up-to-the-second without lag.*
+
+### Ranking Logic
+1. **Priority Level**: Placement (3) > Result (2) > Event (1).
+2. **Recency**: If priorities are equal, the more recent `created_at` timestamp wins.
