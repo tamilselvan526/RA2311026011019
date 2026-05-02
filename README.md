@@ -32,5 +32,5 @@ The following endpoints have been verified and are fully operational:
 3. Run the automated schedule: `GET http://localhost:3000/api/schedule`
 
 ---
-**Author**: Tamilselvan P  
-**Roll No**: RA2311026011019-v1
+ 
+**Roll No**: RA2311026011019
